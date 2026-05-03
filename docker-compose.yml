@@ -1,8 +1,32 @@
-version: '3'
+version: '3.8'
+
 services:
-  web-server:
+  web:
     build: .
     ports:
       - "5000:5000"
     volumes:
-      - ./resources/user_images:/app/resources/user_images
+      - .:/app
+    depends_on:
+      - triton
+    environment:
+      - TRITON_SERVER_URL=http://triton:8000
+
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.03-py3
+    command: tritonserver --model-repository=/models --http-port=8000 --grpc-port=8001 --metrics-port=8002 --log-verbose=0
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    volumes:
+      - ./model_repository:/models
+    shm_size: 1g
+    # CPU only mode (since your laptop has no GPU)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

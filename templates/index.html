@@ -1,23 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>ImageNet Classification</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelScene AI - Image Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+        }
+
+        .drag-over {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+        }
+    </style>
 </head>
-<body>
-    <form method="post" enctype="multipart/form-data">
-        <input type="file" name="image">
-        <input type="submit" name="predict">
-    </form>
-    {% if image_name %}
-        <h2>Your Image:</h2>
-        <img src="{{ url_for('static', filename=image_name) }}" width="224" height="224">
-    {% endif %}
-    {% if res %}
-        <h2>Prediction:</h2>
-        {% for i, j in res %}
-            <h3>{{ i | round(2) }} - {{ j }}</h3>
-        {% endfor %}
-    {% endif %}
+
+<body class="bg-gray-50 min-h-screen">
+
+    <div class="gradient-bg text-white py-8 shadow-lg">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <h1 class="text-5xl font-bold mb-3">IntelScene AI</h1>
+            <p class="text-xl opacity-90">Intelligent Scene Classification using Fine-tuned MobileNetV2</p>
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-6 py-10">
+
+        <!-- Upload Section -->
+        <div class="bg-white rounded-3xl shadow-xl p-10 card-hover mb-10">
+            <div class="text-center mb-8">
+                <i class="fas fa-image text-6xl text-blue-500 mb-4"></i>
+                <h2 class="text-3xl font-semibold text-gray-800">Upload an Image</h2>
+                <p class="text-gray-600 mt-2">Recognize scenes: Mountain, Sea, Forest, Building, Glacier, Street</p>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                <div class="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center transition-colors relative cursor-pointer hover:bg-gray-50"
+                    id="dropZone" onclick="document.getElementById('imageInput').click()">
+                    <input type="file" name="image" id="imageInput" accept="image/*" class="hidden" required>
+                    
+                    <div id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt text-7xl text-gray-300 mb-4"></i>
+                        <p class="text-lg text-gray-600 font-medium">Drag & drop image here or <span class="text-blue-600">Browse Image</span></p>
+                        <p class="text-sm text-gray-400 mt-2">Supports JPG, PNG, JPEG</p>
+                    </div>
+                    
+                    <div id="previewArea" class="hidden flex flex-col items-center">
+                        <img id="formPreviewImage" class="max-h-64 rounded-lg shadow-sm mb-4" alt="Preview">
+                        <p id="fileName" class="text-gray-600 font-medium"></p>
+                        <p class="text-sm text-blue-500 mt-2 hover:underline">Click to change image</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-center mt-8">
+                    <button type="submit" id="submitBtn"
+                        class="px-12 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-lg rounded-2xl hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 flex items-center gap-3 shadow-md hover:shadow-lg">
+                        <span id="btnText">Analyze Image</span>
+                        <i class="fas fa-spinner fa-spin hidden" id="loadingSpinner"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        {% if res %}
+        <!-- Result Section -->
+        <div id="resultSection" class="bg-white rounded-3xl shadow-xl p-10 animate-[fadeIn_0.5s_ease-out]">
+            <div class="flex justify-between items-center mb-8 border-b pb-4">
+                <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-pie text-blue-500 mr-2"></i>Prediction Result</h2>
+                <a href="/" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center gap-2">
+                    <i class="fas fa-redo"></i> Analyze Another
+                </a>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-10">
+                <!-- Image Preview -->
+                <div class="flex-1">
+                    <div class="relative rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+                        <img src="{{ url_for('static', filename=image_name) }}" class="w-full object-cover" alt="Uploaded Image">
+                    </div>
+                </div>
+
+                <!-- Predictions -->
+                <div class="flex-1 space-y-6">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Top Predictions</h3>
+                    <div class="space-y-4">
+                        {% for prob, name in res %}
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 hover:border-blue-200 transition-colors">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-gray-800 font-semibold text-lg capitalize">{{ name }}</span>
+                                <span class="text-blue-600 font-bold text-lg">{{ "%.1f"|format(prob * 100) }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                                <div class="bg-gradient-to-r from-blue-500 to-indigo-500 h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: {{ prob * 100 }}%"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const imageInput = document.getElementById('imageInput');
+        const dropZone = document.getElementById('dropZone');
+        const uploadArea = document.getElementById('uploadArea');
+        const previewArea = document.getElementById('previewArea');
+        const formPreviewImage = document.getElementById('formPreviewImage');
+        const fileName = document.getElementById('fileName');
+
+        // Handle file selection
+        function handleFile(file) {
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    formPreviewImage.src = e.target.result;
+                    fileName.textContent = file.name;
+                    uploadArea.classList.add('hidden');
+                    previewArea.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        imageInput.addEventListener('change', function (e) {
+            handleFile(e.target.files[0]);
+        });
+
+        // Drag and drop functionality
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('drag-over');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('drag-over');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length > 0) {
+                imageInput.files = files;
+                handleFile(files[0]);
+            }
+        }
+
+        // Handle form submission
+        form.addEventListener('submit', function (e) {
+            if (!imageInput.files || imageInput.files.length === 0) {
+                e.preventDefault();
+                alert('Please select an image first.');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            btnText.textContent = 'Analyzing...';
+            loadingSpinner.classList.remove('hidden');
+            // Form submits normally, page will reload with results
+        });
+    </script>
 </body>
+
 </html>
